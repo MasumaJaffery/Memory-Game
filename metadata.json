@@ -1,0 +1,6 @@
+{
+  "name": "Mirrorbound",
+  "description": "A storybook memory card game with customizable deck themes, timed blitz mode, personal high scores, and global leaderboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
