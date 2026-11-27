@@ -60,7 +60,7 @@ import {
   VictoryModal,
 } from './components/GameModals';
 
-const BG_IMAGE_URL = '/assets/aistudio/Enchanted_Forest_Game_Screen_480b1825.png';
+const BG_IMAGE_URL = '/assets/my-studio/Enchanted_Forest_Game_Screen_480b1825.png';
 const MAX_HINTS = 2;
 
 function createShuffledDeck(difficulty: Difficulty, theme: DeckTheme): CardItem[] {

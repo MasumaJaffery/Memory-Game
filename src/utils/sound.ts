@@ -1,7 +1,7 @@
 const MUTE_KEY = 'mirrorbound_muted_v1';
 const MUSIC_KEY = 'mirrorbound_music_enabled_v1';
 export const SOUNDTRACK_URL =
-  '/assets/aistudio/Ever_After_High_Original_Song__Official_Lyric_Video__Ever_After_High__1__0ea92977.mp3';
+  '/assets/my-studio/Ever_After_High_Original_Song__Official_Lyric_Video__Ever_After_High__1__0ea92977.mp3';
 
 const NORMAL_MUSIC_VOLUME = 0.34;
 const DUCKED_MUSIC_VOLUME = 0.16;

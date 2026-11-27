@@ -268,26 +268,26 @@ export interface SymbolDefinition {
 }
 
 export const CHARACTER_CARD_IMAGES: string[] = [
-  '/assets/aistudio/Raven_Queen_Card_44902fdc.png',
-  '/assets/aistudio/Madeline_Hatter_Card_1de97ffd.png',
-  '/assets/aistudio/Briar_Beauty_Card_d3b8b964.png',
-  '/assets/aistudio/Blondie_Lockes_Card_e9e4139f.png',
-  '/assets/aistudio/Lizzie_Hearts_Card_5c2015e5.png',
-  '/assets/aistudio/Holly_O_Hair_Card_277d0822.png',
-  '/assets/aistudio/Duchess_Swan_Card_91e16072.png',
-  '/assets/aistudio/Dexter_Charming_Card_fc524164.png',
-  '/assets/aistudio/C.A_Cupid_Card_d779f091.png',
-  '/assets/aistudio/Hunter_Huntsman_Card_190b7f64.png',
+  '/assets/my-studio/Raven_Queen_Card_44902fdc.png',
+  '/assets/my-studio/Madeline_Hatter_Card_1de97ffd.png',
+  '/assets/my-studio/Briar_Beauty_Card_d3b8b964.png',
+  '/assets/my-studio/Blondie_Lockes_Card_e9e4139f.png',
+  '/assets/my-studio/Lizzie_Hearts_Card_5c2015e5.png',
+  '/assets/my-studio/Holly_O_Hair_Card_277d0822.png',
+  '/assets/my-studio/Duchess_Swan_Card_91e16072.png',
+  '/assets/my-studio/Dexter_Charming_Card_fc524164.png',
+  '/assets/my-studio/C.A_Cupid_Card_d779f091.png',
+  '/assets/my-studio/Hunter_Huntsman_Card_190b7f64.png',
 ];
 
 const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'raven-queen',
     label: 'Raven Queen',
-    imageSrc: '/assets/aistudio/Raven_Queen_Card_44902fdc.png',
+    imageSrc: '/assets/my-studio/Raven_Queen_Card_44902fdc.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Raven_Queen_Card_44902fdc.png"
+        src="/assets/my-studio/Raven_Queen_Card_44902fdc.png"
         alt="Raven Queen"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -298,10 +298,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'madeline-hatter',
     label: 'Madeline Hatter',
-    imageSrc: '/assets/aistudio/Madeline_Hatter_Card_1de97ffd.png',
+    imageSrc: '/assets/my-studio/Madeline_Hatter_Card_1de97ffd.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Madeline_Hatter_Card_1de97ffd.png"
+        src="/assets/my-studio/Madeline_Hatter_Card_1de97ffd.png"
         alt="Madeline Hatter"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -312,10 +312,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'briar-beauty',
     label: 'Briar Beauty',
-    imageSrc: '/assets/aistudio/Briar_Beauty_Card_d3b8b964.png',
+    imageSrc: '/assets/my-studio/Briar_Beauty_Card_d3b8b964.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Briar_Beauty_Card_d3b8b964.png"
+        src="/assets/my-studio/Briar_Beauty_Card_d3b8b964.png"
         alt="Briar Beauty"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -326,10 +326,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'blondie-lockes',
     label: 'Blondie Lockes',
-    imageSrc: '/assets/aistudio/Blondie_Lockes_Card_e9e4139f.png',
+    imageSrc: '/assets/my-studio/Blondie_Lockes_Card_e9e4139f.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Blondie_Lockes_Card_e9e4139f.png"
+        src="/assets/my-studio/Blondie_Lockes_Card_e9e4139f.png"
         alt="Blondie Lockes"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -340,10 +340,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'lizzie-hearts',
     label: 'Lizzie Hearts',
-    imageSrc: '/assets/aistudio/Lizzie_Hearts_Card_5c2015e5.png',
+    imageSrc: '/assets/my-studio/Lizzie_Hearts_Card_5c2015e5.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Lizzie_Hearts_Card_5c2015e5.png"
+        src="/assets/my-studio/Lizzie_Hearts_Card_5c2015e5.png"
         alt="Lizzie Hearts"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -354,10 +354,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'holly-ohair',
     label: "Holly O'Hair",
-    imageSrc: '/assets/aistudio/Holly_O_Hair_Card_277d0822.png',
+    imageSrc: '/assets/my-studio/Holly_O_Hair_Card_277d0822.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Holly_O_Hair_Card_277d0822.png"
+        src="/assets/my-studio/Holly_O_Hair_Card_277d0822.png"
         alt="Holly O'Hair"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -368,10 +368,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'duchess-swan',
     label: 'Duchess Swan',
-    imageSrc: '/assets/aistudio/Duchess_Swan_Card_91e16072.png',
+    imageSrc: '/assets/my-studio/Duchess_Swan_Card_91e16072.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Duchess_Swan_Card_91e16072.png"
+        src="/assets/my-studio/Duchess_Swan_Card_91e16072.png"
         alt="Duchess Swan"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -382,10 +382,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'dexter-charming',
     label: 'Dexter Charming',
-    imageSrc: '/assets/aistudio/Dexter_Charming_Card_fc524164.png',
+    imageSrc: '/assets/my-studio/Dexter_Charming_Card_fc524164.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Dexter_Charming_Card_fc524164.png"
+        src="/assets/my-studio/Dexter_Charming_Card_fc524164.png"
         alt="Dexter Charming"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -396,10 +396,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'ca-cupid',
     label: 'C.A. Cupid',
-    imageSrc: '/assets/aistudio/C.A_Cupid_Card_d779f091.png',
+    imageSrc: '/assets/my-studio/C.A_Cupid_Card_d779f091.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/C.A_Cupid_Card_d779f091.png"
+        src="/assets/my-studio/C.A_Cupid_Card_d779f091.png"
         alt="C.A. Cupid"
         referrerPolicy="no-referrer"
         draggable={false}
@@ -410,10 +410,10 @@ const PORTRAIT_SYMBOLS: SymbolDefinition[] = [
   {
     key: 'hunter-huntsman',
     label: 'Hunter Huntsman',
-    imageSrc: '/assets/aistudio/Hunter_Huntsman_Card_190b7f64.png',
+    imageSrc: '/assets/my-studio/Hunter_Huntsman_Card_190b7f64.png',
     render: (c) => (
       <img
-        src="/assets/aistudio/Hunter_Huntsman_Card_190b7f64.png"
+        src="/assets/my-studio/Hunter_Huntsman_Card_190b7f64.png"
         alt="Hunter Huntsman"
         referrerPolicy="no-referrer"
         draggable={false}
