@@ -13,16 +13,39 @@ class SoundEngine {
   private bgm: HTMLAudioElement | null = null;
   private ducked: boolean = false;
   private visibilityBound: boolean = false;
+  private unlockBound: boolean = false;
 
   constructor() {
+    // Always start with music and sound ON by default when the game loads
+    this.muted = false;
+    this.musicEnabled = true;
     try {
-      this.muted = localStorage.getItem(MUTE_KEY) === 'true';
-      const savedMusic = localStorage.getItem(MUSIC_KEY);
-      this.musicEnabled = savedMusic === null ? true : savedMusic === 'true';
+      localStorage.setItem(MUTE_KEY, 'false');
+      localStorage.setItem(MUSIC_KEY, 'true');
     } catch {
-      this.muted = false;
-      this.musicEnabled = true;
+      // Ignore storage errors
     }
+    this.bindAutoUnlock();
+  }
+
+  private bindAutoUnlock(): void {
+    if (typeof window === 'undefined' || this.unlockBound) return;
+    this.unlockBound = true;
+
+    const tryPlayOnGesture = () => {
+      if (!this.musicEnabled || this.muted) return;
+      const bgm = this.ensureBgm();
+      if (!bgm) return;
+      if (bgm.paused) {
+        bgm.volume = this.ducked ? DUCKED_MUSIC_VOLUME : NORMAL_MUSIC_VOLUME;
+        void bgm.play().catch(() => {});
+      }
+    };
+
+    window.addEventListener('pointerdown', tryPlayOnGesture, { passive: true });
+    window.addEventListener('click', tryPlayOnGesture, { passive: true });
+    window.addEventListener('touchstart', tryPlayOnGesture, { passive: true });
+    window.addEventListener('keydown', tryPlayOnGesture, { passive: true });
   }
 
   private ensureBgm(): HTMLAudioElement | null {
@@ -63,7 +86,7 @@ class SoundEngine {
     bgm.volume = this.ducked ? DUCKED_MUSIC_VOLUME : NORMAL_MUSIC_VOLUME;
     if (bgm.paused) {
       void bgm.play().catch(() => {
-        // Browser blocked autoplay before user gesture; next interaction will trigger it
+        // Browser blocked autoplay before user gesture; global gesture listener will start it immediately on interaction
       });
     }
   }

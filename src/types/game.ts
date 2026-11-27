@@ -1,6 +1,7 @@
 export type GamePhase = 'TITLE' | 'PLAYING' | 'PAUSED' | 'VICTORY' | 'TIME_UP';
 export type GameMode = 'classic' | 'timed';
 export type Difficulty = 'easy' | 'medium' | 'hard';
+export type PlayerAlignment = 'Royal' | 'Rebel';
 
 export type SymbolPackId = 'portraits' | 'storybook' | 'wonderland' | 'celestial' | 'botanical';
 export type BackPatternId = 'filigree' | 'diamond' | 'lattice' | 'starburst';
@@ -48,9 +49,16 @@ export interface PersonalBest {
 
 export type PersonalBestMap = Record<string, PersonalBest>;
 
+export interface PlayerProfile {
+  name: string;
+  alignment: PlayerAlignment;
+}
+
 export interface LeaderboardEntry {
   id: string;
+  userId?: string;
   playerName: string;
+  alignment: PlayerAlignment;
   score: number;
   mode: GameMode;
   difficulty: Difficulty;

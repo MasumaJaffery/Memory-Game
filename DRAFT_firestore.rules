@@ -1,0 +1,124 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidBracket(bracket) {
+      return bracket is string
+        && bracket.size() >= 10
+        && bracket.size() <= 32
+        && bracket in [
+          'classic_easy',
+          'classic_medium',
+          'classic_hard',
+          'timed_easy',
+          'timed_medium',
+          'timed_hard'
+        ];
+    }
+
+    // 3. Entity Validation Blueprint: LeaderboardScore (synced with firebase-blueprint.json)
+    function isValidLeaderboardScore(data) {
+      return data.keys().hasAll([
+          'userId',
+          'playerName',
+          'alignment',
+          'score',
+          'mode',
+          'difficulty',
+          'bracket',
+          'moves',
+          'timeSeconds',
+          'bestStreak',
+          'themeName',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'playerName',
+          'alignment',
+          'score',
+          'mode',
+          'difficulty',
+          'bracket',
+          'moves',
+          'timeSeconds',
+          'bestStreak',
+          'themeName',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.userId is string
+        && data.userId.size() >= 1
+        && data.userId.size() <= 128
+        && data.userId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.playerName is string
+        && data.playerName.size() >= 1
+        && data.playerName.size() <= 24
+        && data.alignment is string
+        && data.alignment.size() >= 5
+        && data.alignment.size() <= 8
+        && data.alignment in ['Royal', 'Rebel']
+        && data.score is int
+        && data.score >= 0
+        && data.score <= 50000
+        && data.mode is string
+        && data.mode.size() >= 5
+        && data.mode.size() <= 16
+        && data.mode in ['classic', 'timed']
+        && data.difficulty is string
+        && data.difficulty.size() >= 4
+        && data.difficulty.size() <= 16
+        && data.difficulty in ['easy', 'medium', 'hard']
+        && isValidBracket(data.bracket)
+        && data.bracket == data.mode + '_' + data.difficulty
+        && data.moves is int
+        && data.moves >= 6
+        && data.moves <= 500
+        && data.timeSeconds is int
+        && data.timeSeconds >= 1
+        && data.timeSeconds <= 7200
+        && data.bestStreak is int
+        && data.bestStreak >= 1
+        && data.bestStreak <= 24
+        && data.themeName is string
+        && data.themeName.size() >= 1
+        && data.themeName.size() <= 28
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 4. Collection Rules: /leaderboard_entries/{entryId}
+    match /leaderboard_entries/{entryId} {
+      allow get: if isValidId(entryId)
+        && (resource == null || isValidBracket(existing().bracket));
+
+      allow list: if isValidBracket(existing().bracket);
+
+      allow create: if isValidId(entryId)
+        && isValidLeaderboardScore(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update, delete: if false;
+    }
+  }
+}

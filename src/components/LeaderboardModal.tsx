@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, Trophy, X } from 'lucide-react';
+import { Crown, Heart, Trophy, X } from 'lucide-react';
 import type {
   Difficulty,
   GameMode,
   LeaderboardEntry,
   PersonalBestMap,
+  PlayerAlignment,
 } from '../types/game';
 import {
   DIFFICULTY_CONFIGS,
-  fetchGlobalLeaderboard,
   formatTime,
   getBestKey,
+  getOrCreateLocalPlayerId,
+  subscribeGlobalLeaderboard,
 } from '../utils/scoring';
 import { soundEngine } from '../utils/sound';
 
@@ -18,6 +20,8 @@ interface LeaderboardModalProps {
   initialMode: GameMode;
   initialDifficulty: Difficulty;
   personalBests: PersonalBestMap;
+  playerName?: string;
+  playerAlignment?: PlayerAlignment;
   highlightEntryId?: string | null;
   onClose: () => void;
 }
@@ -26,38 +30,50 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   initialMode,
   initialDifficulty,
   personalBests,
+  playerName,
+  playerAlignment,
   highlightEntryId,
   onClose,
 }) => {
   const [mode, setMode] = useState<GameMode>(initialMode);
   const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
+  const [alignmentFilter, setAlignmentFilter] = useState<'all' | PlayerAlignment>('all');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [refreshTick, setRefreshTick] = useState(0);
+
+  const localPlayerId = getOrCreateLocalPlayerId();
 
   useEffect(() => {
-    let active = true;
     setLoading(true);
     setError(null);
-    fetchGlobalLeaderboard(mode, difficulty)
-      .then((res) => {
-        if (!active) return;
-        setEntries(res.entries);
-      })
-      .catch(() => {
-        if (!active) return;
-        setError('Unable to reach the global leaderboard right now.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    const unsubscribe = subscribeGlobalLeaderboard(
+      mode,
+      difficulty,
+      (payload) => {
+        setEntries(payload.entries);
+        setLoading(false);
+      },
+      (err) => {
+        setLoading(false);
+        if (err.message.includes('Quota exceeded')) {
+          setError('Daily Firebase free-tier quota reached. Quota resets tomorrow.');
+        } else {
+          setError('Unable to stream real-time leaderboard right now.');
+        }
+      }
+    );
+
     return () => {
-      active = false;
+      unsubscribe();
     };
-  }, [mode, difficulty, refreshTick]);
+  }, [mode, difficulty]);
 
   const personalBest = personalBests[getBestKey(mode, difficulty)];
+  const visibleEntries =
+    alignmentFilter === 'all'
+      ? entries
+      : entries.filter((e) => e.alignment === alignmentFilter);
 
   return (
     <div
@@ -81,26 +97,21 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 className="text-xl font-bold tracking-wide text-[#f7dca0]"
                 style={{ fontFamily: 'var(--font-display)' }}
               >
-                Global Leaderboard
+                Real-Time Global Leaderboard
               </h2>
               <p className="mt-0.5 text-xs text-[#e5d2eb]/75">
-                Compete for top rankings across Classic and Timed Blitz tables.
+                Live Royal &amp; Rebel rankings across Classic and Timed Blitz tables.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playClick();
-                setRefreshTick((t) => t + 1);
-              }}
-              aria-label="Refresh leaderboard"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#fffaf2]/15 text-[#fffaf2]/80 transition-colors hover:bg-[#fffaf2]/10 hover:text-white"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+          <div className="flex items-center gap-3">
+            {playerName && (
+              <span className="hidden text-xs text-[#e5d2eb] sm:inline">
+                Playing as <strong className="font-semibold text-[#f7dca0]">{playerName}</strong>
+                {playerAlignment ? ` · ${playerAlignment}` : ''}
+              </span>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -108,7 +119,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                 onClose();
               }}
               aria-label="Close Leaderboard"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#fffaf2]/15 text-[#fffaf2]/80 transition-colors hover:bg-[#fffaf2]/10 hover:text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#fffaf2]/15 text-[#fffaf2]/80 transition-colors hover:bg-[#fffaf2]/10 hover:text-white"
             >
               <X className="h-5 w-5" />
             </button>
@@ -117,37 +128,61 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#fffaf2]/10 px-6 py-3">
-          <div className="inline-flex rounded-lg bg-[#14071a] p-1">
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playClick();
-                setMode('classic');
-              }}
-              className={[
-                'rounded-md px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
-                mode === 'classic'
-                  ? 'bg-[#7d173b] text-white'
-                  : 'text-[#d9c3e0] hover:text-white',
-              ].join(' ')}
-            >
-              Classic
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                soundEngine.playClick();
-                setMode('timed');
-              }}
-              className={[
-                'rounded-md px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
-                mode === 'timed'
-                  ? 'bg-[#7d173b] text-white'
-                  : 'text-[#d9c3e0] hover:text-white',
-              ].join(' ')}
-            >
-              Timed Blitz
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg bg-[#14071a] p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playClick();
+                  setMode('classic');
+                }}
+                className={[
+                  'rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
+                  mode === 'classic'
+                    ? 'bg-[#7d173b] text-white'
+                    : 'text-[#d9c3e0] hover:text-white',
+                ].join(' ')}
+              >
+                Classic
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  soundEngine.playClick();
+                  setMode('timed');
+                }}
+                className={[
+                  'rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
+                  mode === 'timed'
+                    ? 'bg-[#7d173b] text-white'
+                    : 'text-[#d9c3e0] hover:text-white',
+                ].join(' ')}
+              >
+                Timed Blitz
+              </button>
+            </div>
+
+            {/* Alignment Filter: All / Royal / Rebel */}
+            <div className="inline-flex rounded-lg bg-[#14071a] p-1">
+              {(['all', 'Royal', 'Rebel'] as const).map((filterVal) => (
+                <button
+                  key={filterVal}
+                  type="button"
+                  onClick={() => {
+                    soundEngine.playClick();
+                    setAlignmentFilter(filterVal);
+                  }}
+                  className={[
+                    'rounded-md px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors',
+                    alignmentFilter === filterVal
+                      ? 'bg-[#3f194d] text-[#f7dca0]'
+                      : 'text-[#d9c3e0] hover:text-white',
+                  ].join(' ')}
+                >
+                  {filterVal === 'all' ? 'All' : filterVal}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="inline-flex rounded-lg bg-[#14071a] p-1">
@@ -197,44 +232,48 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
         </div>
 
         {/* Table */}
-        <div className="storybook-scroll flex-1 overflow-y-auto px-6 py-4">
+        <div className="storybook-scroll flex-1 overflow-y-auto px-6 py-4 sm:px-8">
           {loading ? (
             <div className="py-12 text-center text-sm text-[#d6bfd9]">
-              Loading global rankings...
+              Streaming live standings from Firebase...
             </div>
           ) : error ? (
             <div className="py-12 text-center text-sm text-[#fca5a5]">{error}</div>
-          ) : entries.length === 0 ? (
+          ) : visibleEntries.length === 0 ? (
             <div className="py-12 text-center text-sm text-[#d6bfd9]">
-              No global scores recorded for this mode yet. Finish a round to claim Rank #1!
+              No scores recorded in this bracket yet. Click Start Game, choose Royal or Rebel, and clear a round to claim Rank #1!
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-[#fffaf2]/12 text-xs text-[#cbb3d4]">
-                    <th className="py-2.5 pr-3 font-medium">Rank</th>
-                    <th className="py-2.5 pr-3 font-medium">Player</th>
-                    <th className="hidden py-2.5 pr-3 font-medium sm:table-cell">Deck Theme</th>
-                    <th className="py-2.5 pr-3 text-right font-medium">Moves</th>
-                    <th className="py-2.5 pr-3 text-right font-medium">Time</th>
-                    <th className="py-2.5 text-right font-medium">Score</th>
+                    <th className="py-2.5 pl-4 pr-3 font-medium">Rank</th>
+                    <th className="py-2.5 px-3 font-medium">Player</th>
+                    <th className="py-2.5 px-3 font-medium">Destiny</th>
+                    <th className="hidden py-2.5 px-3 font-medium sm:table-cell">Deck Theme</th>
+                    <th className="py-2.5 px-3 text-right font-medium">Moves</th>
+                    <th className="py-2.5 px-3 text-right font-medium">Time</th>
+                    <th className="py-2.5 pl-3 pr-4 text-right font-medium">Score</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#fffaf2]/8">
-                  {entries.map((entry, idx) => {
+                  {visibleEntries.map((entry, idx) => {
                     const rank = idx + 1;
-                    const isHighlighted = highlightEntryId === entry.id;
+                    const isCurrentUser =
+                      highlightEntryId === entry.id || entry.userId === localPlayerId;
+                    const isRebel = entry.alignment === 'Rebel';
+
                     return (
                       <tr
                         key={entry.id}
                         className={
-                          isHighlighted
+                          isCurrentUser
                             ? 'bg-[#d9a236]/15 text-white'
                             : 'transition-colors hover:bg-[#fffaf2]/5'
                         }
                       >
-                        <td className="py-2.5 pr-3 font-mono text-xs font-semibold tabular-nums">
+                        <td className="rounded-l-lg py-3 pl-4 pr-3 font-mono text-xs font-semibold tabular-nums">
                           <span
                             className={
                               rank === 1
@@ -249,22 +288,37 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                             #{rank}
                           </span>
                         </td>
-                        <td className="py-2.5 pr-3 font-semibold text-[#fffaf2]">
+                        <td className="py-3 px-3 font-semibold text-[#fffaf2]">
                           {entry.playerName}
-                          {isHighlighted && (
+                          {isCurrentUser && (
                             <span className="ml-2 text-xs font-normal text-[#f7cf63]">(You)</span>
                           )}
                         </td>
-                        <td className="hidden py-2.5 pr-3 text-xs text-[#cbb3d4] sm:table-cell">
+                        <td className="py-3 px-3 text-xs font-semibold">
+                          <span
+                            className={[
+                              'inline-flex items-center gap-1',
+                              isRebel ? 'text-[#d896ff]' : 'text-[#f5c85c]',
+                            ].join(' ')}
+                          >
+                            {isRebel ? (
+                              <Heart className="h-3.5 w-3.5" />
+                            ) : (
+                              <Crown className="h-3.5 w-3.5" />
+                            )}
+                            {entry.alignment}
+                          </span>
+                        </td>
+                        <td className="hidden py-3 px-3 text-xs text-[#cbb3d4] sm:table-cell">
                           {entry.themeName}
                         </td>
-                        <td className="py-2.5 pr-3 text-right font-mono text-xs tabular-nums text-[#e5d2eb]">
+                        <td className="py-3 px-3 text-right font-mono text-xs tabular-nums text-[#e5d2eb]">
                           {entry.moves}
                         </td>
-                        <td className="py-2.5 pr-3 text-right font-mono text-xs tabular-nums text-[#e5d2eb]">
+                        <td className="py-3 px-3 text-right font-mono text-xs tabular-nums text-[#e5d2eb]">
                           {formatTime(entry.timeSeconds)}
                         </td>
-                        <td className="py-2.5 text-right font-mono text-sm font-semibold tabular-nums text-[#f7dca0]">
+                        <td className="rounded-r-lg py-3 pl-3 pr-4 text-right font-mono text-sm font-semibold tabular-nums text-[#f7dca0]">
                           {entry.score.toLocaleString()}
                         </td>
                       </tr>

@@ -1,3 +1,20 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  where,
+} from 'firebase/firestore';
+import {
+  db,
+  handleFirestoreError,
+  OperationType,
+} from '../firebase';
 import type {
   Difficulty,
   DifficultyConfig,
@@ -5,6 +22,7 @@ import type {
   LeaderboardEntry,
   PersonalBest,
   PersonalBestMap,
+  PlayerAlignment,
   RoundBreakdown,
 } from '../types/game';
 
@@ -43,10 +61,48 @@ export const DIFFICULTY_CONFIGS: Record<Difficulty, DifficultyConfig> = {
 
 export const PERSONAL_BEST_STORAGE_KEY = 'mirrorbound_personal_bests_v1';
 export const PLAYER_NAME_STORAGE_KEY = 'mirrorbound_player_name_v1';
+export const PLAYER_ALIGNMENT_STORAGE_KEY = 'mirrorbound_player_alignment_v1';
+export const PLAYER_ID_STORAGE_KEY = 'mirrorbound_player_id_v1';
 export const LOCAL_LEADERBOARD_FALLBACK_KEY = 'mirrorbound_local_lb_v1';
+
+// Blueprint validation constants synced with firebase-blueprint.json & firestore.rules
+export const BLUEPRINT_LIMITS = {
+  USER_ID_MAX_LEN: 128,
+  ID_PATTERN: /^[a-zA-Z0-9_-]+$/,
+  PLAYER_NAME_MIN_LEN: 1,
+  PLAYER_NAME_MAX_LEN: 24,
+  THEME_NAME_MIN_LEN: 1,
+  THEME_NAME_MAX_LEN: 28,
+  SCORE_MIN: 0,
+  SCORE_MAX: 50000,
+  MOVES_MIN: 6,
+  MOVES_MAX: 500,
+  TIME_MIN: 1,
+  TIME_MAX: 7200,
+  STREAK_MIN: 1,
+  STREAK_MAX: 24,
+} as const;
 
 export function getBestKey(mode: GameMode, difficulty: Difficulty): string {
   return `${mode}:${difficulty}`;
+}
+
+export function getBracketKey(mode: GameMode, difficulty: Difficulty): string {
+  return `${mode}_${difficulty}`;
+}
+
+export function getOrCreateLocalPlayerId(): string {
+  try {
+    const existing = localStorage.getItem(PLAYER_ID_STORAGE_KEY);
+    if (existing && BLUEPRINT_LIMITS.ID_PATTERN.test(existing) && existing.length <= 64) {
+      return existing;
+    }
+    const generated = `player_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(PLAYER_ID_STORAGE_KEY, generated);
+    return generated;
+  } catch {
+    return `player_${Date.now().toString(36)}`;
+  }
 }
 
 export function loadPersonalBests(): PersonalBestMap {
@@ -97,7 +153,27 @@ export function loadSavedPlayerName(): string {
 
 export function savePlayerName(name: string): void {
   try {
-    localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name.trim().slice(0, 24));
+    localStorage.setItem(
+      PLAYER_NAME_STORAGE_KEY,
+      name.trim().slice(0, BLUEPRINT_LIMITS.PLAYER_NAME_MAX_LEN)
+    );
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function loadSavedAlignment(): PlayerAlignment {
+  try {
+    const val = localStorage.getItem(PLAYER_ALIGNMENT_STORAGE_KEY);
+    return val === 'Rebel' ? 'Rebel' : 'Royal';
+  } catch {
+    return 'Royal';
+  }
+}
+
+export function savePlayerAlignment(alignment: PlayerAlignment): void {
+  try {
+    localStorage.setItem(PLAYER_ALIGNMENT_STORAGE_KEY, alignment);
   } catch {
     // Ignore storage errors
   }
@@ -151,32 +227,87 @@ export function formatTime(totalSeconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-export async function fetchGlobalLeaderboard(
-  mode: GameMode,
-  difficulty: Difficulty
-): Promise<{ entries: LeaderboardEntry[]; totalCount: number; source: 'global' | 'local' }> {
-  try {
-    const res = await fetch(`/api/leaderboard?mode=${mode}&difficulty=${difficulty}&limit=40`);
-    if (!res.ok) throw new Error('Failed to load leaderboard');
-    const data = (await res.json()) as { entries: LeaderboardEntry[]; totalCount: number };
-    return { entries: data.entries, totalCount: data.totalCount, source: 'global' };
-  } catch {
-    // Graceful local fallback if server unreachable
-    try {
-      const raw = localStorage.getItem(LOCAL_LEADERBOARD_FALLBACK_KEY);
-      const all: LeaderboardEntry[] = raw ? (JSON.parse(raw) as LeaderboardEntry[]) : [];
-      const filtered = all
-        .filter((e) => e.mode === mode && e.difficulty === difficulty)
-        .sort((a, b) => b.score - a.score || a.moves - b.moves);
-      return { entries: filtered, totalCount: filtered.length, source: 'local' };
-    } catch {
-      return { entries: [], totalCount: 0, source: 'local' };
-    }
+export function sortLeaderboardEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  return [...entries].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.moves !== b.moves) return a.moves - b.moves;
+    return a.timeSeconds - b.timeSeconds;
+  });
+}
+
+function parseFirestoreEntry(docId: string, data: Record<string, unknown>): LeaderboardEntry {
+  const createdVal = data.createdAt;
+  let createdAtIso = new Date().toISOString();
+  if (createdVal instanceof Timestamp) {
+    createdAtIso = createdVal.toDate().toISOString();
+  } else if (typeof createdVal === 'string') {
+    createdAtIso = createdVal;
   }
+
+  return {
+    id: docId,
+    userId: typeof data.userId === 'string' ? data.userId : undefined,
+    playerName: typeof data.playerName === 'string' ? data.playerName : 'Player',
+    alignment: data.alignment === 'Rebel' ? 'Rebel' : 'Royal',
+    score: Number(data.score) || 0,
+    mode: data.mode === 'timed' ? 'timed' : 'classic',
+    difficulty:
+      data.difficulty === 'easy' || data.difficulty === 'hard' ? data.difficulty : 'medium',
+    moves: Number(data.moves) || 6,
+    timeSeconds: Number(data.timeSeconds) || 1,
+    bestStreak: Number(data.bestStreak) || 1,
+    themeName: typeof data.themeName === 'string' ? data.themeName : 'Ever After Cast',
+    createdAt: createdAtIso,
+  };
+}
+
+/**
+ * Subscribes in real-time to the Firestore `/leaderboard_entries` collection for a given mode & difficulty bracket.
+ */
+export function subscribeGlobalLeaderboard(
+  mode: GameMode,
+  difficulty: Difficulty,
+  onUpdate: (payload: { entries: LeaderboardEntry[]; totalCount: number; isLive: boolean }) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const bracket = getBracketKey(mode, difficulty);
+  const path = 'leaderboard_entries';
+  const q = query(
+    collection(db, path),
+    where('bracket', '==', bracket),
+    limit(60)
+  );
+
+  const unsubscribe = onSnapshot(
+    q,
+    (snapshot) => {
+      const firestoreEntries: LeaderboardEntry[] = snapshot.docs.map((d) =>
+        parseFirestoreEntry(d.id, d.data() as Record<string, unknown>)
+      );
+      const sorted = sortLeaderboardEntries(firestoreEntries);
+      onUpdate({
+        entries: sorted.slice(0, 40),
+        totalCount: sorted.length,
+        isLive: true,
+      });
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (structuredErr) {
+        if (onError && structuredErr instanceof Error) {
+          onError(structuredErr);
+        }
+      }
+    }
+  );
+
+  return unsubscribe;
 }
 
 export async function submitGlobalScore(payload: {
   playerName: string;
+  alignment: PlayerAlignment;
   score: number;
   mode: GameMode;
   difficulty: Difficulty;
@@ -184,37 +315,108 @@ export async function submitGlobalScore(payload: {
   timeSeconds: number;
   bestStreak: number;
   themeName: string;
-}): Promise<{ entry: LeaderboardEntry; rank: number; totalCount: number; source: 'global' | 'local' }> {
-  try {
-    const res = await fetch('/api/leaderboard', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const errData = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(errData.error || 'Could not submit score');
-    }
-    const data = (await res.json()) as { entry: LeaderboardEntry; rank: number; totalCount: number };
-    return { ...data, source: 'global' };
-  } catch (err) {
-    // Fallback to local storage if network unavailable (but rethrow validation errors)
-    if (err instanceof Error && err.message.includes('valid player name')) {
-      throw err;
-    }
-    const entry: LeaderboardEntry = {
-      id: `local-${Date.now()}`,
-      ...payload,
-      createdAt: new Date().toISOString(),
-    };
-    const raw = localStorage.getItem(LOCAL_LEADERBOARD_FALLBACK_KEY);
-    const all: LeaderboardEntry[] = raw ? (JSON.parse(raw) as LeaderboardEntry[]) : [];
-    all.push(entry);
-    localStorage.setItem(LOCAL_LEADERBOARD_FALLBACK_KEY, JSON.stringify(all));
-    const bucket = all
-      .filter((e) => e.mode === payload.mode && e.difficulty === payload.difficulty)
-      .sort((a, b) => b.score - a.score || a.moves - b.moves);
-    const rank = bucket.findIndex((e) => e.id === entry.id) + 1;
-    return { entry, rank, totalCount: bucket.length, source: 'local' };
+}): Promise<{
+  entry: LeaderboardEntry;
+  rank: number;
+  totalCount: number;
+  source: 'firebase' | 'global' | 'local';
+}> {
+  // Enforce defensive payload constraints from firebase-blueprint.json
+  const sanitizedName = payload.playerName
+    .trim()
+    .replace(/[^\p{L}\p{N}\s._'-]/gu, '')
+    .slice(0, BLUEPRINT_LIMITS.PLAYER_NAME_MAX_LEN)
+    .trim();
+
+  if (sanitizedName.length < BLUEPRINT_LIMITS.PLAYER_NAME_MIN_LEN) {
+    throw new Error('Please enter a valid player name (1–24 characters).');
   }
+
+  const alignment: PlayerAlignment = payload.alignment === 'Rebel' ? 'Rebel' : 'Royal';
+  const localPlayerId = getOrCreateLocalPlayerId();
+
+  const clampedScore = Math.min(
+    BLUEPRINT_LIMITS.SCORE_MAX,
+    Math.max(BLUEPRINT_LIMITS.SCORE_MIN, Math.round(payload.score))
+  );
+  const clampedMoves = Math.min(
+    BLUEPRINT_LIMITS.MOVES_MAX,
+    Math.max(BLUEPRINT_LIMITS.MOVES_MIN, Math.round(payload.moves))
+  );
+  const clampedTime = Math.min(
+    BLUEPRINT_LIMITS.TIME_MAX,
+    Math.max(BLUEPRINT_LIMITS.TIME_MIN, Math.round(payload.timeSeconds))
+  );
+  const clampedStreak = Math.min(
+    BLUEPRINT_LIMITS.STREAK_MAX,
+    Math.max(BLUEPRINT_LIMITS.STREAK_MIN, Math.round(payload.bestStreak))
+  );
+  const sanitizedTheme =
+    payload.themeName
+      .trim()
+      .replace(/[^\p{L}\p{N}\s'-]/gu, '')
+      .slice(0, BLUEPRINT_LIMITS.THEME_NAME_MAX_LEN)
+      .trim() || 'Ever After Cast';
+
+  const bracket = getBracketKey(payload.mode, payload.difficulty);
+  const entryId = `${localPlayerId}_${Date.now()}`.slice(0, BLUEPRINT_LIMITS.USER_ID_MAX_LEN);
+  const path = 'leaderboard_entries';
+
+  try {
+    await setDoc(doc(db, path, entryId), {
+      userId: localPlayerId,
+      playerName: sanitizedName,
+      alignment,
+      score: clampedScore,
+      mode: payload.mode,
+      difficulty: payload.difficulty,
+      bracket,
+      moves: clampedMoves,
+      timeSeconds: clampedTime,
+      bestStreak: clampedStreak,
+      themeName: sanitizedTheme,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `${path}/${entryId}`);
+  }
+
+  // Compute live rank in the bracket
+  let rank = 1;
+  let totalCount = 1;
+  try {
+    const q = query(collection(db, path), where('bracket', '==', bracket), limit(100));
+    const snap = await getDocs(q);
+    const allEntries = sortLeaderboardEntries(
+      snap.docs.map((d) => parseFirestoreEntry(d.id, d.data() as Record<string, unknown>))
+    );
+    totalCount = Math.max(1, allEntries.length);
+    const foundIdx = allEntries.findIndex((e) => e.id === entryId);
+    rank = foundIdx >= 0 ? foundIdx + 1 : totalCount;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+  }
+
+  const createdEntry: LeaderboardEntry = {
+    id: entryId,
+    userId: localPlayerId,
+    playerName: sanitizedName,
+    alignment,
+    score: clampedScore,
+    mode: payload.mode,
+    difficulty: payload.difficulty,
+    moves: clampedMoves,
+    timeSeconds: clampedTime,
+    bestStreak: clampedStreak,
+    themeName: sanitizedTheme,
+    createdAt: new Date().toISOString(),
+  };
+
+  return {
+    entry: createdEntry,
+    rank,
+    totalCount,
+    source: 'firebase',
+  };
 }

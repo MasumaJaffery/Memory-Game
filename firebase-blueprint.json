@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "LeaderboardScore": {
+      "title": "LeaderboardScore",
+      "description": "A player's memory card game score entry with their Name and Royal or Rebel destiny alignment.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Persistent client player identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "playerName": {
+          "type": "string",
+          "description": "Public display name shown on the global leaderboard (no PII).",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "alignment": {
+          "type": "string",
+          "description": "Whether the player chose Royal or Rebel destiny.",
+          "enum": ["Royal", "Rebel"],
+          "minLength": 5,
+          "maxLength": 8
+        },
+        "score": {
+          "type": "integer",
+          "description": "Calculated final round score between 0 and 50000."
+        },
+        "mode": {
+          "type": "string",
+          "description": "Game mode played.",
+          "enum": ["classic", "timed"],
+          "minLength": 5,
+          "maxLength": 16
+        },
+        "difficulty": {
+          "type": "string",
+          "description": "Board difficulty tier.",
+          "enum": ["easy", "medium", "hard"],
+          "minLength": 4,
+          "maxLength": 16
+        },
+        "bracket": {
+          "type": "string",
+          "description": "Composite mode and difficulty bracket key used for indexed single-field real-time queries.",
+          "enum": [
+            "classic_easy",
+            "classic_medium",
+            "classic_hard",
+            "timed_easy",
+            "timed_medium",
+            "timed_hard"
+          ],
+          "minLength": 10,
+          "maxLength": 32
+        },
+        "moves": {
+          "type": "integer",
+          "description": "Total pair flip attempts taken to clear the board."
+        },
+        "timeSeconds": {
+          "type": "integer",
+          "description": "Elapsed time in seconds to complete the round."
+        },
+        "bestStreak": {
+          "type": "integer",
+          "description": "Longest consecutive pair match streak during the round."
+        },
+        "themeName": {
+          "type": "string",
+          "description": "Deck theme used during the round.",
+          "minLength": 1,
+          "maxLength": 28
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the score entry was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the score entry was recorded."
+        }
+      },
+      "required": [
+        "userId",
+        "playerName",
+        "alignment",
+        "score",
+        "mode",
+        "difficulty",
+        "bracket",
+        "moves",
+        "timeSeconds",
+        "bestStreak",
+        "themeName",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/leaderboard_entries/{entryId}": {
+      "schema": "LeaderboardScore",
+      "description": "Real-time global leaderboard score entries keyed by entryId."
+    }
+  }
+}

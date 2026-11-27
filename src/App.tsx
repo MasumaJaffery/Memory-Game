@@ -19,6 +19,7 @@ import type {
   GameMode,
   GamePhase,
   PersonalBestMap,
+  PlayerAlignment,
   RoundBreakdown,
 } from './types/game';
 import {
@@ -39,16 +40,27 @@ import {
   formatTime,
   getBestKey,
   loadPersonalBests,
+  loadSavedAlignment,
+  loadSavedPlayerName,
   savePersonalBest,
+  savePlayerAlignment,
+  savePlayerName,
 } from './utils/scoring';
 import { soundEngine } from './utils/sound';
 import { TitleLockup } from './components/TitleLockup';
+import { StagePillar } from './components/StagePillar';
 import { MemoryCard } from './components/MemoryCard';
 import { DeckStudioModal } from './components/DeckStudioModal';
 import { LeaderboardModal } from './components/LeaderboardModal';
-import { PauseModal, TimeUpModal, VictoryModal } from './components/GameModals';
+import { VictoryParticles } from './components/VictoryParticles';
+import {
+  DestinySetupModal,
+  PauseModal,
+  TimeUpModal,
+  VictoryModal,
+} from './components/GameModals';
 
-const BG_IMAGE_URL = '/assets/aistudio/Bg_8aa87a6a.jpg';
+const BG_IMAGE_URL = '/assets/aistudio/Enchanted_Forest_Game_Screen_480b1825.png';
 const MAX_HINTS = 2;
 
 function createShuffledDeck(difficulty: Difficulty, theme: DeckTheme): CardItem[] {
@@ -101,10 +113,14 @@ interface FloatingToast {
 }
 
 export default function App() {
-  // Persisted theme & high score state
+  // Persisted theme, player destiny profile & high score state
   const [customTheme, setCustomTheme] = useState<DeckTheme>(() => loadCustomTheme());
   const [activeThemeId, setActiveThemeId] = useState<string>(() => loadActiveThemeId());
   const [personalBests, setPersonalBests] = useState<PersonalBestMap>(() => loadPersonalBests());
+  const [playerName, setPlayerName] = useState<string>(() => loadSavedPlayerName());
+  const [playerAlignment, setPlayerAlignment] = useState<PlayerAlignment>(() =>
+    loadSavedAlignment()
+  );
   const [muted, setMuted] = useState<boolean>(() => soundEngine.isMuted());
   const [musicOn, setMusicOn] = useState<boolean>(() => soundEngine.isMusicEnabled());
 
@@ -134,7 +150,9 @@ export default function App() {
   // Keyboard grid focus
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  // Modals
+  // Modals & Victory particle state
+  const [showVictoryParticles, setShowVictoryParticles] = useState(false);
+  const [showDestinyModal, setShowDestinyModal] = useState(false);
   const [showDeckStudio, setShowDeckStudio] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardHighlightId, setLeaderboardHighlightId] = useState<string | null>(null);
@@ -194,17 +212,9 @@ export default function App() {
     });
   }, []);
 
-  // Unlock and start soundtrack on the first pointer or keyboard gesture
+  // Start soundtrack immediately on mount (and auto-unlock on first user gesture if browser requires interaction)
   useEffect(() => {
-    const unlockAudio = () => {
-      soundEngine.ensureMusicPlaying();
-    };
-    window.addEventListener('pointerdown', unlockAudio, { once: true });
-    window.addEventListener('keydown', unlockAudio, { once: true });
-    return () => {
-      window.removeEventListener('pointerdown', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-    };
+    soundEngine.ensureMusicPlaying();
   }, []);
 
   // Gently duck background soundtrack during pause or end-of-round modals
@@ -246,9 +256,27 @@ export default function App() {
       setRoundBreakdown(null);
       setToast(null);
       setFocusedIndex(null);
+      setShowVictoryParticles(false);
       setPhase('PLAYING');
     },
     [activeTheme, clearPendingTimers, difficulty, mode]
+  );
+
+  const handleRequestStartFromTitle = useCallback(() => {
+    soundEngine.playClick();
+    setShowDestinyModal(true);
+  }, []);
+
+  const handleConfirmDestinyAndStart = useCallback(
+    (confirmedName: string, confirmedAlignment: PlayerAlignment) => {
+      setPlayerName(confirmedName);
+      setPlayerAlignment(confirmedAlignment);
+      savePlayerName(confirmedName);
+      savePlayerAlignment(confirmedAlignment);
+      setShowDestinyModal(false);
+      startNewGame(mode, difficulty);
+    },
+    [difficulty, mode, startNewGame]
   );
 
   // Sync card labels cleanly if the user switches themes mid-round
@@ -399,6 +427,7 @@ export default function App() {
           });
           setPersonalBests(saved.map);
           setRoundBreakdown({ ...breakdown, isNewPersonalBest: saved.isNewBest });
+          setShowVictoryParticles(true);
 
           victoryTimerRef.current = window.setTimeout(() => {
             soundEngine.playVictory();
@@ -481,6 +510,10 @@ export default function App() {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
       if (e.key === 'Escape') {
+        if (showDestinyModal) {
+          setShowDestinyModal(false);
+          return;
+        }
         if (showDeckStudio) {
           setShowDeckStudio(false);
           return;
@@ -499,7 +532,7 @@ export default function App() {
         }
       }
 
-      if (showDeckStudio || showLeaderboard) return;
+      if (showDestinyModal || showDeckStudio || showLeaderboard) return;
 
       const lower = e.key.toLowerCase();
       if (lower === 'm') {
@@ -510,7 +543,7 @@ export default function App() {
       if (phase === 'TITLE') {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          startNewGame();
+          handleRequestStartFromTitle();
         } else if (lower === 't') {
           soundEngine.playClick();
           setShowDeckStudio(true);
@@ -570,10 +603,12 @@ export default function App() {
     diffCfg.cols,
     focusedIndex,
     handleCardSelect,
+    handleRequestStartFromTitle,
     handleToggleMute,
     handleTriggerHint,
     phase,
     showDeckStudio,
+    showDestinyModal,
     showLeaderboard,
     startNewGame,
   ]);
@@ -866,7 +901,7 @@ export default function App() {
       <div className="mt-3 space-y-2.5">
         <button
           type="button"
-          onClick={() => startNewGame()}
+          onClick={handleRequestStartFromTitle}
           className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#f0c55d] to-[#cf9323] px-5 text-sm font-bold tracking-wide text-[#210c24] shadow-[0_6px_18px_rgba(217,162,54,0.35)] transition-transform duration-150 hover:brightness-105 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fff3c4]"
         >
           <Play className="h-4 w-4 fill-current" />
@@ -888,6 +923,11 @@ export default function App() {
           </button>
 
           <div className="flex items-center gap-1.5">
+            {playerName && (
+              <span className="hidden text-[11px] text-[#e5d2eb] sm:inline">
+                {playerName} · <strong className="text-[#f7dca0]">{playerAlignment}</strong> ·
+              </span>
+            )}
             <span className="hidden font-mono text-[11px] tabular-nums text-[#d6bfd9] sm:inline">
               {currentBest ? `Best: ${currentBest.score.toLocaleString()}` : 'No best yet'}
             </span>
@@ -987,19 +1027,22 @@ export default function App() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_38%,rgba(20,7,26,0.72)_100%)]"
       />
 
-      {/* DESKTOP / LANDSCAPE STAGE: Pixel-aligned to the exact 913x514 widescreen illustrated mirror backdrop */}
+      {/* LEFT ORNATE STORYBOOK PILLAR (fills left widescreen empty space) */}
+      <StagePillar side="left" />
+
+      {/* DESKTOP / LANDSCAPE STAGE: Pixel-aligned to the exact 1672x941 HD widescreen illustrated mirror backdrop */}
       <main
-        className="relative hidden overflow-hidden shadow-[0_20px_70px_rgba(0,0,0,0.6)] lg:block"
+        className="relative hidden shrink-0 overflow-hidden shadow-[0_20px_70px_rgba(0,0,0,0.75)] lg:block"
         style={{
-          width: 'min(100vw, calc(100dvh * 913 / 514))',
-          height: 'min(100dvh, calc(100vw * 514 / 913))',
+          width: 'min(100vw, calc(100dvh * 1672 / 941))',
+          height: 'min(100dvh, calc(100vw * 941 / 1672))',
         }}
       >
-        {/* User's attached Widescreen Storybook Mirror Background */}
+        {/* User's attached HD Enchanted Forest Storybook Mirror Background */}
         {!bgLoadedError ? (
           <img
             src={BG_IMAGE_URL}
-            alt="Enchanted storybook mirror stage"
+            alt="Enchanted forest storybook mirror stage"
             referrerPolicy="no-referrer"
             onError={() => setBgLoadedError(true)}
             className="pointer-events-none absolute inset-0 h-full w-full object-fill"
@@ -1012,9 +1055,9 @@ export default function App() {
         <div
           className="pointer-events-none absolute z-20 flex flex-col items-center justify-center"
           style={{
-            left: '51%',
-            top: phase === 'TITLE' ? '2.4%' : '2.2%',
-            width: '48%',
+            left: '50.1%',
+            top: phase === 'TITLE' ? '2.2%' : '2.0%',
+            width: '49%',
             transform: 'translateX(-50%)',
           }}
         >
@@ -1026,10 +1069,10 @@ export default function App() {
           aria-label={phase === 'TITLE' ? 'Game Setup' : 'Memory Card Board'}
           className="absolute z-10 overflow-hidden rounded-2xl"
           style={{
-            left: '28.3%',
-            top: '28.5%',
-            width: '45.4%',
-            height: '57.4%',
+            left: '25.9%',
+            top: '26.4%',
+            width: '48.4%',
+            height: '49.0%',
           }}
         >
           {phase === 'TITLE' ? renderTitleMirrorContent() : renderCardBoard()}
@@ -1039,8 +1082,8 @@ export default function App() {
         <footer
           className="pointer-events-none absolute z-20 flex justify-center"
           style={{
-            left: '51%',
-            bottom: '0.8%',
+            left: '50.1%',
+            bottom: '5.0%',
             transform: 'translateX(-50%)',
           }}
         >
@@ -1049,6 +1092,9 @@ export default function App() {
           </div>
         </footer>
       </main>
+
+      {/* RIGHT ORNATE STORYBOOK PILLAR (fills right widescreen empty space) */}
+      <StagePillar side="right" />
 
       {/* MOBILE / TABLET RESPONSIVE FALLBACK (< 1024px) */}
       <main className="relative z-10 flex h-full w-full flex-col items-center justify-between gap-3 px-3 py-3 lg:hidden">
@@ -1090,13 +1136,28 @@ export default function App() {
         </div>
       </main>
 
+      {/* Celebratory Victory Particle Animation */}
+      {(showVictoryParticles || phase === 'VICTORY') && (
+        <VictoryParticles alignment={playerAlignment} />
+      )}
+
       {/* Modals */}
+      {showDestinyModal && (
+        <DestinySetupModal
+          initialName={playerName}
+          initialAlignment={playerAlignment}
+          onConfirmStart={handleConfirmDestinyAndStart}
+          onClose={() => setShowDestinyModal(false)}
+        />
+      )}
+
       {phase === 'PAUSED' && !showDeckStudio && !showLeaderboard && (
         <PauseModal
           onResume={() => setPhase('PLAYING')}
           onRestart={() => startNewGame()}
           onExitToTitle={() => {
             clearPendingTimers();
+            setShowVictoryParticles(false);
             setPhase('TITLE');
           }}
         />
@@ -1110,10 +1171,17 @@ export default function App() {
           elapsedSeconds={Math.max(1, elapsedSeconds)}
           bestStreak={Math.max(1, bestStreak)}
           themeName={activeTheme.name}
+          playerName={playerName}
+          playerAlignment={playerAlignment}
           breakdown={roundBreakdown}
+          onUpdateProfile={(nextName, nextAlignment) => {
+            setPlayerName(nextName);
+            setPlayerAlignment(nextAlignment);
+          }}
           onPlayAgain={() => startNewGame()}
           onExitToTitle={() => {
             clearPendingTimers();
+            setShowVictoryParticles(false);
             setPhase('TITLE');
           }}
           onOpenLeaderboard={(entryId) => {
@@ -1152,6 +1220,8 @@ export default function App() {
           initialMode={mode}
           initialDifficulty={difficulty}
           personalBests={personalBests}
+          playerName={playerName}
+          playerAlignment={playerAlignment}
           highlightEntryId={leaderboardHighlightId}
           onClose={() => setShowLeaderboard(false)}
         />
