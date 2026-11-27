@@ -1078,18 +1078,26 @@ export default function App() {
           {phase === 'TITLE' ? renderTitleMirrorContent() : renderCardBoard()}
         </section>
 
-        {/* Bottom Quiet Control-Hint Strip beneath the mirror */}
+        {/* Bottom Quiet Control-Hint Strip & Developer Credit beneath the mirror */}
         <footer
-          className="pointer-events-none absolute z-20 flex justify-center"
+          className="pointer-events-none absolute z-20 flex flex-col items-center gap-1.5"
           style={{
             left: '50.1%',
-            bottom: '5.0%',
+            bottom: '2.2%',
             transform: 'translateX(-50%)',
           }}
         >
           <div className="rounded-lg border border-[#e7be6a]/30 bg-[#200c25]/86 px-3.5 py-1 text-[11px] font-medium tracking-wide text-[#f7e6c4] whitespace-nowrap shadow-md">
             {controlHintLine}
           </div>
+          <a
+            href="https://icodedreams.me/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pointer-events-auto rounded-full bg-[#200c25]/70 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-[#f7e6c4]/85 underline decoration-[#e7be6a]/45 underline-offset-2 transition-colors hover:text-[#f7dca0]"
+          >
+            Developed by icodedreams
+          </a>
         </footer>
       </main>
 
@@ -1128,12 +1136,22 @@ export default function App() {
           </div>
         </section>
 
-        {/* Bottom Hint */}
-        <div className="text-center text-[11px] font-medium text-[#f5e3be]/90">
-          {phase === 'TITLE'
-            ? 'Tap Start Game or customize your deck theme'
-            : 'Tap two cards to reveal a matching pair'}
-        </div>
+        {/* Bottom Hint & Developer Credit */}
+        <footer className="flex flex-col items-center gap-1 text-center">
+          <div className="text-[11px] font-medium text-[#f5e3be]/90">
+            {phase === 'TITLE'
+              ? 'Tap Start Game or customize your deck theme'
+              : 'Tap two cards to reveal a matching pair'}
+          </div>
+          <a
+            href="https://icodedreams.me/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-medium text-[#f7e6c4]/80 underline decoration-[#e7be6a]/45 underline-offset-2 transition-colors hover:text-[#f7dca0]"
+          >
+            Developed by icodedreams
+          </a>
+        </footer>
       </main>
 
       {/* Celebratory Victory Particle Animation */}
